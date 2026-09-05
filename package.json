@@ -1,6 +1,6 @@
 {
   "name": "photoapp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packageManager": "pnpm@11.19.0",
   "description": "Lucci Photo Video's cross-platform photo culling and selection app",
   "main": "dist-electron/main.js",
@@ -10,18 +10,23 @@
     "dev": "concurrently -k \"vite\" \"tsc -p tsconfig.main.json --watch\" \"wait-on tcp:5173 file:dist-electron/main.js && electron .\"",
     "build": "tsc -p tsconfig.main.json && vite build",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.main.json --noEmit",
-    "dist:mac": "pnpm build && electron-builder --mac dmg zip",
-    "dist:win": "pnpm build && electron-builder --win nsis portable",
-    "dist": "pnpm build && electron-builder -mw"
+    "dist:mac": "pnpm build && electron-builder --mac dmg zip --publish never",
+    "dist:win": "pnpm build && electron-builder --win nsis portable --publish never",
+    "dist": "pnpm build && electron-builder -mw --publish never",
+    "test": "tsc -p tsconfig.main.json && node --test tests/*.cjs"
   },
   "dependencies": {
+    "@tensorflow-models/blazeface": "^0.1.0",
+    "@tensorflow/tfjs": "^4.22.0",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
+    "exifr": "^7.1.3",
+    "libraw-wasm": "1.6.0",
+    "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "lucide-react": "latest",
-    "sharp": "latest"
+    "sharp": "latest",
+    "typescript": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
@@ -36,10 +41,37 @@
     "appId": "com.lucciphotovideo.photoapp",
     "productName": "Lucci's Photo Select",
     "asar": true,
-    "files": ["dist/**/*", "dist-electron/**/*", "package.json", "node_modules/**/*"],
-    "directories": { "output": "release" },
-    "mac": { "category": "public.app-category.photography", "target": ["dmg", "zip"], "icon": "build/icon.png" },
-    "win": { "target": ["nsis", "portable"], "icon": "build/icon.ico" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "models/**/*",
+      "build/icon.png",
+      "THIRD_PARTY_NOTICES.md",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "asarUnpack": ["node_modules/libraw-wasm/**/*"],
+    "mac": {
+      "category": "public.app-category.photography",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

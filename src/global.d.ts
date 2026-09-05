@@ -1,9 +1,8 @@
-import type { ImportProgress, Library, Photo } from './types'
-declare global { interface Window { photoAPI: {
-  platform: string;
-  importCard(): Promise<Library | null>; loadLibrary(): Promise<Library | null>;
-  updatePhoto(id:string, patch:Partial<Photo>): Promise<boolean>; exportPhotos(ids:string[]): Promise<{exported:number;folder?:string}|null>;
-  saveGrid(): Promise<{saved:boolean;file?:string}|null>; openGrid(): Promise<Library|null>;
-  clearLibrary(): Promise<boolean>; onImportProgress(callback:(p:ImportProgress)=>void):()=>void;
-} } }
+import type {ImportProgress,Library,Report,Patch,Inspection} from './types'
+declare global {interface Window {photoAPI:{
+  platform:string;loadLibrary():Promise<Library|null>;importCard():Promise<{library:Library|null;report:Report}|null>;
+  updatePhotos(ids:string[],patch:Patch):Promise<Library|null>;inspect(id:string):Promise<Inspection>;suggest(n:number,v:number):Promise<string[]>;undo(redo?:boolean):Promise<Library|null>;
+  exportPhotos(ids:string[],mode:'rename'|'skip'):Promise<Report|null>;saveGrid():Promise<Report|null>;openGrid():Promise<Library|null>;relink():Promise<{library:Library|null;report:Report}|null>;
+  rerank():Promise<{library:Library|null;report:Report}>;cancel():Promise<void>;clearLibrary():Promise<void>;onImportProgress(fn:(p:ImportProgress)=>void):()=>void;
+}}}
 export {}
