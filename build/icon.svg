@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Lucci's Photo Select — Coral</title>
+  <desc>A coral and pink SD card with a white camera symbol, seated in a deep purple reader. Colors drawn from lucciphotovideo.com.</desc>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#271E2A"/><stop offset="1" stop-color="#0A0A0A"/></linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F07778"/><stop offset=".4" stop-color="#F07778"/><stop offset="1" stop-color="#BD3267"/></linearGradient>
+    <linearGradient id="reader" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#44489A"/><stop offset="1" stop-color="#282C78"/></linearGradient>
+  </defs>
+  <g id="Background"><rect x="32" y="32" width="960" height="960" rx="212" fill="url(#tile)"/><rect x="34" y="34" width="956" height="956" rx="210" fill="none" stroke="#FFFFFF" stroke-opacity=".09" stroke-width="4"/></g>
+  <g id="Card-shadow"><path d="M292 692V312L408 196H686Q738 196 738 248V692Z" fill="#080F1B" opacity=".4"/></g>
+  <g id="SD-card"><path d="M280 676V292L396 176H684Q736 176 736 228V676Z" fill="url(#card)"/><path d="M294 297L401 190H678" fill="none" stroke="#FFFFFF" stroke-opacity=".4" stroke-width="7" stroke-linecap="round"/></g>
+  <g id="Camera" fill="none" stroke="#FFFFFF" stroke-width="27" stroke-linejoin="round">
+    <path d="M391 353H442L463 321H556L578 353H629Q645 353 645 371V503Q645 521 627 521H391Q373 521 373 503V371Q373 353 391 353Z"/>
+    <circle cx="509" cy="433" r="53"/>
+  </g>
+  <g id="Reader"><rect x="200" y="628" width="624" height="184" rx="48" fill="#0C1420"/>
+    <path d="M200 664Q200 628 236 628H300L344 680H680L724 628H788Q824 628 824 664V788Q824 832 780 832H244Q200 832 200 788Z" fill="url(#reader)"/>
+    <path d="M236 630H298L342 682H682L726 630H788" fill="none" stroke="#93A6BD" stroke-opacity=".38" stroke-width="5"/>
+    <rect x="470" y="753" width="84" height="12" rx="6" fill="#F07778"/>
+  </g>
+</svg>
