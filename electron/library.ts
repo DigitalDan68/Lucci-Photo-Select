@@ -3,6 +3,7 @@ import {createReadStream,createWriteStream,constants,existsSync} from 'node:fs'
 import {pipeline} from 'node:stream/promises'
 import {createHash,randomUUID} from 'node:crypto'
 import path from 'node:path'
+import {availableParallelism} from 'node:os'
 import sharp from 'sharp'
 import {planRename,executeRename,applyRenamePaths,RenamePreview,RenameOptions} from './rename'
 import {readMetadata} from './metadata'
@@ -45,19 +46,20 @@ export class Catalog {
   async importFiles(files:string[]){const signal=this.start(),r=report('Import'),cache=path.join(this.root,'cache',randomUUID()),photos:Photo[]=[]
     try{const groups=new Map<string,{stem:string;jpeg?:string;raw?:string}>()
       for(const file of files){const ext=path.extname(file).toLowerCase();if(!imageExts.has(ext)&&!rawExts.has(ext)){r.skipped++;continue}const key=path.join(path.dirname(file),path.parse(file).name.toLowerCase()),g=groups.get(key)||{stem:path.parse(file).name};if(imageExts.has(ext))g.jpeg=file;else g.raw=file;groups.set(key,g)}
-      // Pair only within the same directory, never across two cameras' folders.
-      for(const g of groups.values()){const file=g.jpeg||g.raw!;const siblings=await fs.readdir(path.dirname(file));for(const name of siblings){if(path.parse(name).name.toLowerCase()!==g.stem.toLowerCase())continue;const ext=path.extname(name).toLowerCase();if(!g.jpeg&&imageExts.has(ext))g.jpeg=path.join(path.dirname(file),name);if(!g.raw&&rawExts.has(ext))g.raw=path.join(path.dirname(file),name)}}
+      // Pair only within the same directory, never across two cameras' folders. Read each directory once.
+      const directoryEntries=new Map<string,Promise<string[]>>()
+      for(const g of groups.values()){const file=g.jpeg||g.raw!,folder=path.dirname(file);let siblings=directoryEntries.get(folder);if(!siblings){siblings=fs.readdir(folder);directoryEntries.set(folder,siblings)}for(const name of await siblings){if(path.parse(name).name.toLowerCase()!==g.stem.toLowerCase())continue;const ext=path.extname(name).toLowerCase();if(!g.jpeg&&imageExts.has(ext))g.jpeg=path.join(folder,name);if(!g.raw&&rawExts.has(ext))g.raw=path.join(folder,name)}}
       let bytes=0;for(const g of groups.values())for(const f of[g.jpeg,g.raw])if(f)bytes+=(await fs.stat(f)).size;await space(cache,groups.size*2*1024*1024)
-      const seen=new Set<string>();let index=0
-      for(const g of groups.values()){if(signal.aborted)break;index++;this.progress({phase:'Importing and ranking',current:index,total:groups.size,file:g.stem})
-        const dir=path.join(cache,randomUUID());try{const hash=await digest(g.raw||g.jpeg!,signal);if(seen.has(hash)){r.skipped++;continue}seen.add(hash);await fs.mkdir(dir,{recursive:true})
+      const seen=new Set<string>(),entries=[...groups.values()],results:Array<Photo|undefined>=new Array(entries.length);let cursor=0,completed=0
+      const processNext=async()=>{while(!signal.aborted){const position=cursor++;if(position>=entries.length)return;const g=entries[position],dir=path.join(cache,randomUUID());this.progress({phase:'Importing and ranking',current:completed,total:groups.size,file:g.stem});try{const hash=await digest(g.raw||g.jpeg!,signal);if(seen.has(hash)){r.skipped++;continue}seen.add(hash);await fs.mkdir(dir,{recursive:true})
           const jpeg=g.jpeg,raw=g.raw
           let analysis=jpeg;const full=path.join(dir,'camera-preview.jpg')
           if(!analysis){try{await imageJob('extract',raw!,full,signal);analysis=full}catch(e){if(signal.aborted)throw e;analysis=path.join(dir,'raw-decoded.png');await imageJob('decode',raw!,analysis,signal)}}
           const preview=path.join(dir,'grid.jpg'),metrics=await imageJob('analyze',analysis!,preview,signal)
           Object.assign(metrics,await readMetadata(raw||jpeg!))
-          photos.push({id:randomUUID(),stem:g.stem,jpegPath:jpeg,rawPath:raw,sourceJpeg:g.jpeg,sourceRaw:g.raw,hash,previewUrl:photoUrl(preview),fullPreviewUrl:photoUrl(analysis!),bookmarked:false,flag:'none',ratingSource:'automatic',colorLabel:'none',note:'',importedAt:new Date().toISOString(),...metrics});r.completed++
-        }catch(e){if(signal.aborted)break;r.errors.push(`${g.stem}: ${String((e as Error).message)}`)}}
+          results[position]={id:randomUUID(),stem:g.stem,jpegPath:jpeg,rawPath:raw,sourceJpeg:g.jpeg,sourceRaw:g.raw,hash,previewUrl:photoUrl(preview),fullPreviewUrl:photoUrl(analysis!),bookmarked:false,flag:'none',ratingSource:'automatic',colorLabel:'none',note:'',importedAt:new Date().toISOString(),...metrics};r.completed++
+        }catch(e){if(signal.aborted)return;r.errors.push(`${g.stem}: ${String((e as Error).message)}`)}finally{completed++;this.progress({phase:'Importing and ranking',current:completed,total:groups.size,file:g.stem})}}}
+      const concurrency=Math.min(3,Math.max(2,availableParallelism()-1));await Promise.all(Array.from({length:Math.min(concurrency,entries.length)},()=>processNext()));photos.push(...results.filter((photo):photo is Photo=>!!photo))
       r.cancelled=signal.aborted
       if(!r.cancelled&&photos.length){groupBursts(photos);this.library={name:path.basename(path.dirname(files[0])),source:path.dirname(files[0]),cacheDir:cache,photos,createdAt:new Date().toISOString()};this.history=[];this.future=[];await this.persist()}
       else {await fs.rm(cache,{recursive:true,force:true});r.completed=0}
