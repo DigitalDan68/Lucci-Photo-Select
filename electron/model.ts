@@ -2,6 +2,8 @@ export type Photo = {
   id:string; stem:string; jpegPath?:string; rawPath?:string; sourceJpeg?:string; sourceRaw?:string;
   previewUrl:string; fullPreviewUrl?:string; decodedPath?:string; hash?:string;
   width:number; height:number; capturedAt?:string; camera?:string; lens?:string; iso?:number;
+  shutter?:number; aperture?:number; whiteBalance?:string; colorLabel?:'none'|'red'|'yellow'|'green'|'blue'|'purple';
+  review?:boolean; missing?:boolean; ratingSource?:'manual'|'automatic'; viewingProfile?:string;
   score:number; stars:number; sharpness:number; exposure:number; noise:number; framing:number;
   eyeSharpness?:number; faceCount?:number; ratingVersion?:number; ratingNotes?:string[];
   signature?:number[]; burstId?:string; bookmarked:boolean; flag?:'none'|'pick'|'reject'; note:string; importedAt:string;
@@ -9,7 +11,7 @@ export type Photo = {
 export type Library={name:string;source:string;cacheDir?:string;photos:Photo[];createdAt:string;projectPath?:string}
 export type Progress={phase:string;current:number;total:number;file?:string}
 export type Report={title:string;completed:number;skipped:number;cancelled:boolean;errors:string[];folder?:string}
-export type Patch=Partial<Pick<Photo,'stars'|'flag'|'bookmarked'|'note'>>
+export type Patch=Partial<Pick<Photo,'stars'|'flag'|'bookmarked'|'note'|'colorLabel'|'review'|'viewingProfile'>>
 export type Inspection={url:string;width:number;height:number;kind:'RAW decoded'|'JPEG'|'Camera preview';warning?:string}
 export const imageExts=new Set(['.jpg','.jpeg'])
 export const rawExts=new Set(['.arw','.cr2','.cr3','.nef','.raf','.orf','.rw2','.dng'])

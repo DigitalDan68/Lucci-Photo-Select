@@ -4,6 +4,8 @@ import {pathToFileURL} from 'node:url'
 import sharp from 'sharp'
 import * as tf from '@tensorflow/tfjs'
 import {BlazeFaceModel} from '@tensorflow-models/blazeface'
+import {readMetadata} from './metadata'
+import {assessQuality} from './quality'
 import exifr from 'exifr'
 
 let detector:Promise<BlazeFaceModel>|undefined
@@ -19,7 +21,7 @@ const median=(a:number[])=>a.length?a.sort((x,y)=>x-y)[Math.floor(a.length/2)]:0
 function region(g:Uint8Array,w:number,h:number,x:number,y:number,rw:number,rh:number){let sum=0,n=0;for(let yy=Math.max(1,Math.floor(y));yy<Math.min(h-1,y+rh);yy++)for(let xx=Math.max(1,Math.floor(x));xx<Math.min(w-1,x+rw);xx++){const i=yy*w+xx,l=4*g[i]-g[i-1]-g[i+1]-g[i-w]-g[i+w];sum+=l*l;n++}return n?sum/n:0}
 export async function analyze(file:string,preview:string){
   const oriented=await sharp(file).rotate().removeAlpha().toColourspace('srgb').toBuffer()
-  const meta=await sharp(oriented).metadata();const {data:g,info}=await sharp(oriented).resize({width:1200,height:1200,fit:'inside',withoutEnlargement:true}).greyscale().raw().toBuffer({resolveWithObject:true});const w=info.width,h=info.height
+  const meta=await sharp(oriented).metadata();const {data:g,info}=await sharp(oriented).resize({width:2000,height:2000,fit:'inside',withoutEnlargement:true}).blur(.8).greyscale().raw().toBuffer({resolveWithObject:true});const w=info.width,h=info.height
   const rgb=await sharp(oriented).resize({width:640,height:640,fit:'inside',withoutEnlargement:true}).raw().toBuffer({resolveWithObject:true})
   const tensor=tf.tensor3d(new Uint8Array(rgb.data),[rgb.info.height,rgb.info.width,3],'int32')
   let faces:any[]=[];const notes:string[]=[]
@@ -28,33 +30,42 @@ export async function analyze(file:string,preview:string){
   const center=region(g,w,h,w*.2,h*.2,w*.6,h*.6),eyeValues:number[]=[];let edgeCut=0
   for(const f of faces){const [x,y]=f.topLeft as number[],[x2,y2]=f.bottomRight as number[];if(x<4||y<4||x2>rgb.info.width-4||y2>rgb.info.height-4)edgeCut++
     for(const [ex,ey] of (f.landmarks as number[][]||[]).slice(0,2)){const size=Math.max(8,(x2-x)*sx*.22);eyeValues.push(region(g,w,h,ex*sx-size/2,ey*sy-size/2,size,size))}}
-  const focus=clamp(Math.log1p(eyeValues.length?median(eyeValues):center)/Math.log(1201))
+  const focus=clamp(Math.log1p(eyeValues.length?Math.min(...eyeValues):center)/Math.log(1201))
   let dark=0,bright=0,total=0;const residuals:number[]=[]
   for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2){const i=y*w+x,v=g[i];total++;if(v<7)dark++;if(v>248)bright++
     const gradient=Math.abs(g[i-2]-g[i+2])+Math.abs(g[i-2*w]-g[i+2*w]);if(gradient<14&&v>15&&v<235)residuals.push(Math.abs(v-(g[i-1]+g[i+1]+g[i-w]+g[i+w])/4))}
   const noiseSigma=median(residuals)/.754;const noise=clamp(noiseSigma/12),exposure=clamp(1-(dark/total)*1.1-(bright/total)*3)
   // Framing is a measured crop-risk indicator, not an aesthetic judgment.
   const framing=faces.length?clamp(1-edgeCut/faces.length):undefined
-  const score=1+4*clamp(focus*.65+exposure*.2+(1-noise)*.15-(framing===undefined?0:(1-framing)*.12))
+  const assessment=assessQuality(focus,exposure,noise,eyeValues.length>0)
+  if(assessment.review)notes.push('Needs visual review: subject focus is uncertain. This is not an aesthetic rating.')
   notes.push(eyeValues.length?'Focus measured around detected eyes.':'No reliable face found; central-region focus used.')
   if(noise>.4)notes.push('Visible noise estimated in flat areas; inspect at 100%.')
   if(bright/total>.05)notes.push('Clipped highlights detected.')
   if(edgeCut)notes.push('A detected face meets the frame edge.')
   if(framing===undefined)notes.push('Framing needs visual review.')
-  let exif:any={};try{exif=await exifr.parse(file)||{}}catch{}
+  const metadata=await readMetadata(file)
   const signature=Array.from(await sharp(oriented).resize(16,16,{fit:'fill'}).greyscale().raw().toBuffer())
   await sharp(oriented).resize({width:1200,height:1200,fit:'inside',withoutEnlargement:true}).jpeg({quality:88}).toFile(preview)
-  return {width:meta.width||w,height:meta.height||h,score:+score.toFixed(2),stars:Math.round(score),sharpness:focus*5,exposure:exposure*5,noise:noise*5,framing:framing===undefined?-1:framing*5,eyeSharpness:eyeValues.length?focus*5:undefined,faceCount:faces.length,ratingNotes:notes,ratingVersion:2,signature,capturedAt:exif.DateTimeOriginal instanceof Date?exif.DateTimeOriginal.toISOString():undefined,camera:exif.Model,lens:exif.LensModel,iso:exif.ISO}
+  return {width:meta.width||w,height:meta.height||h,...assessment,stars:0,sharpness:focus*5,exposure:exposure*5,noise:noise*5,framing:framing===undefined?-1:framing*5,eyeSharpness:eyeValues.length?focus*5:undefined,faceCount:faces.length,ratingNotes:notes,ratingVersion:3,signature,...metadata}
 }
 export async function decodeRaw(file:string,out:string){
   const root=path.dirname(require.resolve('libraw-wasm'))
   const create=(await import(pathToFileURL(path.join(root,'libraw.js')).href)).default
   const m=await create({wasmBinary:await fs.readFile(path.join(root,'libraw.wasm'))})
   const raw=new m.LibRaw()
-  try{raw.open(new Uint8Array(await fs.readFile(file)),{useCameraWb:true,outputColor:1,outputBps:8,halfSize:false,userQual:3});const metadata=raw.metadata();const p=raw.imageData()
+  try{raw.open(new Uint8Array(await fs.readFile(file)),{useCameraWb:true,outputColor:1,outputBps:8,halfSize:false,userQual:3,userFlip:0});const metadata=raw.metadata(true);const p=raw.imageData()
     if(!p.data?.length||p.bits!==8||p.colors!==3)throw new Error('Unsupported decoded RAW pixel format')
-    await sharp(Buffer.from(p.data),{raw:{width:p.width,height:p.height,channels:3}}).png().toFile(out)
-    return{width:p.width,height:p.height,camera:metadata.camera_model,capturedAt:metadata.timestamp?new Date(metadata.timestamp*1000).toISOString():undefined}
+    if(p.data.length!==p.width*p.height*3)throw new Error('Decoded RAW dimensions do not match its pixel buffer')
+    let image=sharp(Buffer.from(p.data),{raw:{width:p.width,height:p.height,channels:3}})
+    const crop=metadata.raw_inset_crops?.[0]
+    // LibRaw can return padded Sony compressed-RAW tiles; use the recorded active area.
+    if(crop&&crop.cwidth>0&&crop.cheight>0&&crop.cleft>=0&&crop.ctop>=0&&crop.cleft+crop.cwidth<=p.width&&crop.ctop+crop.cheight<=p.height){image=image.extract({left:crop.cleft,top:crop.ctop,width:crop.cwidth,height:crop.cheight})}
+    let orientation=({0:1,3:3,5:8,6:6} as Record<number,number>)[metadata.flip]||1
+    try{const tags=await exifr.parse(file,{translateValues:false,pick:['Orientation']});if(tags?.Orientation>=1&&tags.Orientation<=8)orientation=tags.Orientation}catch{}
+    const oriented=await image.withMetadata({orientation}).png().toBuffer()
+    const result=await sharp(oriented).rotate().png().toFile(out)
+    return{width:result.width,height:result.height,camera:metadata.camera_model,capturedAt:metadata.timestamp?new Date(metadata.timestamp*1000).toISOString():undefined}
   }finally{raw.delete?.()}
 }
 export async function embeddedPreview(file:string,out:string){const bytes=await fs.readFile(file),soi=Buffer.from([255,216,255]),eoi=Buffer.from([255,217]);let cursor=0,best:Buffer|undefined

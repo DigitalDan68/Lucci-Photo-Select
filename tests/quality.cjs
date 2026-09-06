@@ -1,0 +1,6 @@
+const {test}=require('node:test');const assert=require('node:assert/strict')
+const {assessQuality}=require('../dist-electron/quality')
+const {metadataFields}=require('../dist-electron/metadata')
+test('strong background texture without reliable subject eyes cannot receive a top score',()=>{const result=assessQuality(1,1,0,false);assert.equal(result.score,3);assert.equal(result.review,true)})
+test('good exposure cannot compensate for weak subject focus',()=>{const weak=assessQuality(.2,1,0,true),strong=assessQuality(.9,1,0,true);assert(weak.score<2);assert(strong.score>weak.score);assert(weak.review)})
+test('metadata preserves exposure values and distinguishes unknown white balance',()=>{const values=metadataFields({ExposureTime:1/250,FNumber:2.8,ISO:800,WhiteBalance:0,DateTimeOriginal:new Date('2026-09-05T12:00:00Z')});assert.equal(values.shutter,1/250);assert.equal(values.aperture,2.8);assert.equal(values.whiteBalance,'Auto');assert.equal(values.iso,800);assert.equal(metadataFields({}).whiteBalance,undefined)})
