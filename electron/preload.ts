@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('photoAPI',{
   updatePhotos:(ids:string[],patch:unknown)=>ipcRenderer.invoke('photo:update',ids,patch),inspect:(id:string,mode?:string)=>ipcRenderer.invoke('photo:inspect',id,mode),
   suggest:(n:number,v:number)=>ipcRenderer.invoke('selection:suggest',n,v),undo:(redo=false)=>ipcRenderer.invoke('history:undo',redo),
   exportPhotos:(ids:string[],mode:string)=>ipcRenderer.invoke('photos:export',ids,mode),saveGrid:()=>ipcRenderer.invoke('grid:save'),openGrid:()=>ipcRenderer.invoke('grid:open'),
+  newGrid:()=>ipcRenderer.invoke('grid:new'),
   relink:()=>ipcRenderer.invoke('grid:relink'),rerank:()=>ipcRenderer.invoke('library:rerank'),cancel:()=>ipcRenderer.invoke('operation:cancel'),clearLibrary:()=>ipcRenderer.invoke('library:clear'),
   onImportProgress:(callback:(p:unknown)=>void)=>{const fn=(_:unknown,p:unknown)=>callback(p);ipcRenderer.on('import:progress',fn);return()=>ipcRenderer.removeListener('import:progress',fn)}
 })

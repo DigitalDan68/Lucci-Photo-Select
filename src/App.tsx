@@ -52,6 +52,8 @@ export default function App(){
   if((action==='undo'||action==='redo')&&editing){document.execCommand(action);return}
   if(best||keys||exportOpen||report||missingOpen)return
   if(action==='open')void open()
+  else if(action==='new')void newCatalog()
+  else if(action==='deselect')setSelected([])
   else if(action==='save'&&lib)void operation(()=>api.saveGrid())
   else if(action==='import')void operation(()=>api.importCard())
   else if(action==='export'&&exportIds.length)setExportOpen(true)
@@ -62,6 +64,7 @@ export default function App(){
   else if(action==='actual')applyZoom(true)
   else if(action==='shortcuts')setKeys(true)
  }))
+ async function newCatalog(){try{const next=await api.newGrid();if(next){setLib(next);setSelected([]);setActive('');setView([]);setMissingOpen(false)}}catch(e){setError((e as Error).message)}}
  const resetFilters=()=>{setFilter('all');setQuery('');setMinStars(0);setFileType('all');setColorFilter('all');setCameraFilter('all');setFromDate('');setToDate('')}
  const filters=<div className="advanced-filters"><label>Rating<select aria-label="Minimum stars" value={minStars} onChange={e=>setMinStars(+e.target.value)}>{[0,1,2,3,4,5].map(n=><option key={n} value={n}>{n===0?'Any rating':n+' ★ and up'}</option>)}</select></label><label>Files<select value={fileType} onChange={e=>setFileType(e.target.value)}><option value="all">All formats</option><option value="raw">RAW</option><option value="jpeg">JPEG only</option><option value="pair">RAW + JPEG</option></select></label><label>Label<select value={colorFilter} onChange={e=>setColorFilter(e.target.value)}><option value="all">All colors</option>{colors.map(c=><option key={c}>{c}</option>)}</select></label><label>Camera<select value={cameraFilter} onChange={e=>setCameraFilter(e.target.value)}><option value="all">All cameras</option>{Array.from(new Set(lib?.photos.map(p=>p.camera).filter(Boolean))).map(c=><option key={c}>{c}</option>)}</select></label><label>From<input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)}/></label><label>To<input type="date" value={toDate} onChange={e=>setToDate(e.target.value)}/></label><button onClick={resetFilters}>Reset filters</button></div>
  const projectActions=<><button disabled={busy} onClick={open}>Open <kbd>{shortcut('O')}</kbd></button><button disabled={!lib||busy} onClick={()=>operation(()=>api.saveGrid())}>Save LPV <kbd>{shortcut('S')}</kbd></button><button disabled={!exportIds.length||busy} onClick={()=>setExportOpen(true)}>Export {exportIds.length} <kbd>{shortcut('E')}</kbd></button><button disabled={!lib||busy} onClick={startRename}>Rename <kbd>F2</kbd></button></>
