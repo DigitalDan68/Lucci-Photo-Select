@@ -35,7 +35,7 @@ export default function App(){
    if(e.key==='Escape'){e.preventDefault();if(best||keys||exportOpen||report||missingOpen){setBest(false);setKeys(false);setExportOpen(false);setReport(null);setMissingOpen(false)}else{setView([]);target?.blur()}return}
    if(editing||renameOpen||busy||best||keys||exportOpen||report||missingOpen)return
    const k=e.key.toLowerCase(),mod=api.platform==='darwin'?e.metaKey:e.ctrlKey
-   if(mod){if(k==='z'){e.preventDefault();void history(e.shiftKey)}else if(k==='a'){e.preventDefault();setSelected(photos.map(p=>p.id))}else if(k==='s'){e.preventDefault();void operation(()=>api.saveGrid())}else if(k==='o'){e.preventDefault();void open()}else if(k==='e'&&exportIds.length){e.preventDefault();setExportOpen(true)}return}
+   if(mod){if(k==='z'){e.preventDefault();void history(e.shiftKey)}else if(k==='a'){e.preventDefault();setSelected((lib?.photos||[]).map(p=>p.id))}else if(k==='s'){e.preventDefault();void operation(()=>api.saveGrid())}else if(k==='o'){e.preventDefault();void open()}else if(k==='e'&&exportIds.length){e.preventDefault();setExportOpen(true)}return}
    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();navigate(e.key==='ArrowRight'?1:-1);return}
    if(/^[0-5]$/.test(k)){e.preventDefault();void change({stars:+k})}
    if(['p','x','u','b','r'].includes(k)&&current){e.preventDefault();void change(k==='p'?{flag:'pick'}:k==='x'?{flag:'reject'}:k==='u'?{flag:'none'}:k==='b'?{bookmarked:!current.bookmarked}:{review:!current.review})}
@@ -53,6 +53,7 @@ export default function App(){
   if(best||keys||exportOpen||report||missingOpen)return
   if(action==='open')void open()
   else if(action==='new')void newCatalog()
+  else if(action==='select')setSelected((lib?.photos||[]).map(p=>p.id))
   else if(action==='deselect')setSelected([])
   else if(action==='save'&&lib)void operation(()=>api.saveGrid())
   else if(action==='import')void operation(()=>api.importCard())
