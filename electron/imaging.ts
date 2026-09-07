@@ -27,10 +27,13 @@ export async function analyze(file:string,preview:string){
   let faces:any[]=[];const notes:string[]=[]
   try{faces=await(await facesModel()).estimateFaces(tensor,false)}catch{notes.push('Face detection unavailable; regional focus used.')}finally{tensor.dispose()}
   const sx=w/rgb.info.width,sy=h/rgb.info.height
-  const center=region(g,w,h,w*.2,h*.2,w*.6,h*.6),eyeValues:number[]=[];let edgeCut=0
+  const center=region(g,w,h,w*.2,h*.2,w*.6,h*.6),whole=region(g,w,h,0,0,w,h),eyeValues:number[]=[];let edgeCut=0
   for(const f of faces){const [x,y]=f.topLeft as number[],[x2,y2]=f.bottomRight as number[];if(x<4||y<4||x2>rgb.info.width-4||y2>rgb.info.height-4)edgeCut++
     for(const [ex,ey] of (f.landmarks as number[][]||[]).slice(0,2)){const size=Math.max(8,(x2-x)*sx*.22);eyeValues.push(region(g,w,h,ex*sx-size/2,ey*sy-size/2,size,size))}}
-  const focus=clamp(Math.log1p(eyeValues.length?Math.min(...eyeValues):center)/Math.log(1201))
+  // One soft/occluded face should not condemn an otherwise sharp group photo. Use the lower quartile.
+  const sortedEyes=[...eyeValues].sort((a,b)=>a-b),eyeFocus=sortedEyes[Math.floor((sortedEyes.length-1)*.25)]
+  // Without a face, include off-center subjects rather than judging only the middle of the frame.
+  const focus=clamp(Math.log1p(eyeValues.length?eyeFocus:Math.max(center,whole*.95))/Math.log(1201))
   let dark=0,bright=0,total=0;const residuals:number[]=[]
   for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2){const i=y*w+x,v=g[i];total++;if(v<7)dark++;if(v>248)bright++
     const gradient=Math.abs(g[i-2]-g[i+2])+Math.abs(g[i-2*w]-g[i+2*w]);if(gradient<14&&v>15&&v<235)residuals.push(Math.abs(v-(g[i-1]+g[i+1]+g[i-w]+g[i+w])/4))}
@@ -47,7 +50,7 @@ export async function analyze(file:string,preview:string){
   const metadata=await readMetadata(file)
   const signature=Array.from(await sharp(oriented).resize(16,16,{fit:'fill'}).greyscale().raw().toBuffer())
   await sharp(oriented).resize({width:1200,height:1200,fit:'inside',withoutEnlargement:true}).jpeg({quality:88}).toFile(preview)
-  return {width:meta.width||w,height:meta.height||h,...assessment,stars:0,sharpness:focus*5,exposure:exposure*5,noise:noise*5,framing:framing===undefined?-1:framing*5,eyeSharpness:eyeValues.length?focus*5:undefined,faceCount:faces.length,ratingNotes:notes,ratingVersion:3,signature,...metadata}
+  return {width:meta.width||w,height:meta.height||h,...assessment,stars:0,sharpness:focus*5,exposure:exposure*5,noise:noise*5,framing:framing===undefined?-1:framing*5,eyeSharpness:eyeValues.length?focus*5:undefined,faceCount:faces.length,ratingNotes:notes,ratingVersion:4,signature,...metadata}
 }
 export async function decodeRaw(file:string,out:string){
   const root=path.dirname(require.resolve('libraw-wasm'))

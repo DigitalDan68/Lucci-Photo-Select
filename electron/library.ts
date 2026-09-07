@@ -93,7 +93,7 @@ export class Catalog {
     }finally{this.controller=undefined}}
   async refreshReferences(){
     for(const p of this.library?.photos||[]){
-      p.missing=!!((p.rawPath&&!this.resolve(p,'raw'))||(p.jpegPath&&!this.resolve(p,'jpeg')))
+      p.missingRaw=!!(p.rawPath&&!this.resolve(p,'raw'));p.missingJpeg=!!(p.jpegPath&&!this.resolve(p,'jpeg'));p.missing=!!(p.missingRaw||p.missingJpeg)
       const original=this.resolve(p,'raw')||this.resolve(p,'jpeg')
       if(original)Object.assign(p,await readMetadata(original))
       if(!p.previewUrl||!existsSync(photoPath(p.previewUrl))){

@@ -11,6 +11,13 @@ app.whenReady().then(async()=>{
  try{
   await win.loadFile(path.join(__dirname,'../../dist/index.html'))
   await wait('document.querySelectorAll(".thumb").length===24')
+  await run(`document.querySelectorAll('.thumb')[0].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:200,clientY:200}))`)
+  await wait(`!!document.querySelector('.photo-context')`)
+  assert.equal(await run(`[...document.querySelectorAll('.photo-context>button')].find(b=>b.textContent.includes('Open RAW')).disabled`),false)
+  assert.equal(await run(`[...document.querySelectorAll('.photo-context>button')].find(b=>b.textContent.includes('Open JPEG')).disabled`),false)
+  await run(`document.querySelector('.context-dismiss').click();document.querySelectorAll('.thumb')[1].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:200,clientY:200}))`)
+  assert.equal(await run(`[...document.querySelectorAll('.photo-context>button')].find(b=>b.textContent.includes('Open RAW')).disabled`),true,'RAW editor option is disabled when RAW is absent')
+  await run(`document.querySelector('.context-dismiss').click()`)
   assert.equal(await run('document.querySelectorAll(".app-menus").length'),0,'No duplicate HTML File/View menus')
   assert.equal(await run('document.body.textContent.includes("⌘")'),false,'Windows displays no Mac shortcut hints')
   await run(`window.viewerTest.menu('settings')`)

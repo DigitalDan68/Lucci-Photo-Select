@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('photoAPI',{
   exportPhotos:(ids:string[],mode:string)=>ipcRenderer.invoke('photos:export',ids,mode),saveGrid:()=>ipcRenderer.invoke('grid:save'),openGrid:()=>ipcRenderer.invoke('grid:open'),
   newGrid:()=>ipcRenderer.invoke('grid:new'),
   settings:()=>ipcRenderer.invoke('settings:load'),saveSettings:(value:unknown)=>ipcRenderer.invoke('settings:save',value),checkUpdates:()=>ipcRenderer.invoke('updates:check'),
+  choosePhotoEditor:()=>ipcRenderer.invoke('settings:choose-editor'),openInPhotoEditor:(id:string,kind:'raw'|'jpeg')=>ipcRenderer.invoke('photo:open-editor',id,kind),
   relink:()=>ipcRenderer.invoke('grid:relink'),rerank:()=>ipcRenderer.invoke('library:rerank'),cancel:()=>ipcRenderer.invoke('operation:cancel'),clearLibrary:()=>ipcRenderer.invoke('library:clear'),
   onImportProgress:(callback:(p:unknown)=>void)=>{const fn=(_:unknown,p:unknown)=>callback(p);ipcRenderer.on('import:progress',fn);return()=>ipcRenderer.removeListener('import:progress',fn)}
 })

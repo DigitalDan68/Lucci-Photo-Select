@@ -20,7 +20,16 @@ export const cameraMatches=(a:string,b:string)=>a.toLowerCase().replace(/^sony\s
 export function profileSettings(file:string){return `[Version]\nAppVersion=5.12\nVersion=352\n[Exposure]\nAuto=false\nCompensation=0\n[White Balance]\nEnabled=true\nSetting=Camera\n[Crop]\nEnabled=false\n[Resize]\nEnabled=false\n[Color Management]\nInputProfile=file:${file.replaceAll('\\','/').replace(/[\r\n]/g,'')}\nToneCurve=true\nApplyLookTable=true\nApplyBaselineExposureOffset=true\nApplyHueSatMap=true\nDCPIlluminant=0\nWorkingProfile=ProPhoto\nOutputProfile=RT_sRGB\n`}
 export class ProfileStore{
  constructor(private root:string){}
- async list():Promise<{engine?:string;profiles:CameraProfile[]}>{try{return JSON.parse(await fs.readFile(path.join(this.root,'camera-profiles.json'),'utf8'))}catch{return {profiles:[]}}}
+ async list():Promise<{engine?:string;profiles:CameraProfile[]}>{
+  const currentFile=path.join(this.root,'camera-profiles.json'),dataRoot=path.dirname(path.dirname(this.root)),files=[currentFile,path.join(dataRoot,"Lucci's Photo Select",'photo-library','camera-profiles.json'),path.join(dataRoot,'photoapp','photo-library','camera-profiles.json')]
+  const states:{file:string;engine?:string;profiles:CameraProfile[]}[]=[]
+  for(const file of [...new Set(files)])try{const value=JSON.parse(await fs.readFile(file,'utf8'));if(Array.isArray(value.profiles))states.push({file,engine:typeof value.engine==='string'?value.engine:undefined,profiles:value.profiles.filter((p:CameraProfile)=>p&&typeof p.id==='string'&&typeof p.name==='string'&&typeof p.camera==='string'&&typeof p.file==='string')})}catch{/* Missing legacy profile stores are expected. */}
+  const current=states.find(state=>state.file===currentFile)||{file:currentFile,profiles:[]},profiles=new Map(current.profiles.map(profile=>[profile.id,profile]))
+  for(const state of states.filter(state=>state.file!==currentFile))for(const profile of state.profiles)if(!profiles.has(profile.id))try{await fs.access(profile.file);profiles.set(profile.id,profile)}catch{/* Ignore stale profile references. */}
+  const merged={engine:current.engine||states.find(state=>state.engine)?.engine,profiles:[...profiles.values()]}
+  if(merged.profiles.length>current.profiles.length)await this.save(merged)
+  return merged
+ }
  private async save(value:unknown){await fs.mkdir(this.root,{recursive:true});const file=path.join(this.root,'camera-profiles.json'),tmp=file+'.'+randomUUID()+'.tmp';await fs.writeFile(tmp,JSON.stringify(value));await fs.rename(tmp,file)}
  async add(file:string){if(path.extname(file).toLowerCase()!=='.dcp')throw new Error('Choose a .dcp camera profile');const bytes=await fs.readFile(file),identity=dcpIdentity(bytes),state=await this.list(),id='dcp:'+createHash('sha256').update(bytes).digest('hex');state.profiles=state.profiles.filter(p=>p.id!==id);state.profiles.push({id,...identity,file});await this.save(state);return state}
  async setEngine(file:string){if(!/^rawtherapee-cli(?:\.exe)?$/i.test(path.basename(file)))throw new Error('Choose rawtherapee-cli from a RawTherapee installation');await fs.access(file);const state=await this.list();state.engine=file;await this.save(state);return state}

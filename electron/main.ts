@@ -4,12 +4,14 @@ import {GithubRelease,macInstaller,newerVersion} from './update'
 import {photoFilesInFolder} from './folders'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import {spawn} from 'node:child_process'
 import {existsSync,readFileSync} from 'node:fs'
 import {Catalog} from './library'
 import {photoPath,Patch} from './model'
 let win:BrowserWindow|null=null;let catalog:Catalog
-let appSettings={autoUpdates:true,hardwareAcceleration:true},settingsFile=path.join(app.getPath('userData'),'settings.json')
-try{const early=JSON.parse(readFileSync(settingsFile,'utf8'));appSettings={autoUpdates:early.autoUpdates!==false,hardwareAcceleration:early.hardwareAcceleration!==false}}catch{/* Defaults are used on first launch. */}
+type AppSettings={autoUpdates:boolean;hardwareAcceleration:boolean;photoEditor?:string}
+let appSettings:AppSettings={autoUpdates:true,hardwareAcceleration:true},settingsFile=path.join(app.getPath('userData'),'settings.json')
+try{const early=JSON.parse(readFileSync(settingsFile,'utf8'));appSettings={autoUpdates:early.autoUpdates!==false,hardwareAcceleration:early.hardwareAcceleration!==false,photoEditor:typeof early.photoEditor==='string'?early.photoEditor:undefined}}catch{/* Defaults are used on first launch. */}
 if(!appSettings.hardwareAcceleration)app.disableHardwareAcceleration()
 async function saveAppSettings(){const temp=settingsFile+'.tmp';await fs.writeFile(temp,JSON.stringify(appSettings,null,2));await fs.rename(temp,settingsFile);return appSettings}
 let checkForUpdates=async(manual=false)=>{if(manual&&win)await dialog.showMessageBox(win,{type:'info',message:'Updates are available in installed builds.',detail:'Automatic updates are disabled while running from source.'})}
@@ -20,7 +22,7 @@ if(!app.isPackaged&&process.env.LPV_TEST_DATA)app.setPath('userData',process.env
 protocol.registerSchemesAsPrivileged([{scheme:'photo',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}])
 async function windowCreate(){win=new BrowserWindow({title:app.name,width:1480,height:920,minWidth:1100,minHeight:740,backgroundColor:'#1b191e',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false}});await win.loadFile(path.join(__dirname,'../dist/index.html'));win.on('closed',()=>win=null)}
 app.whenReady().then(async()=>{
-  try{const saved=JSON.parse(await fs.readFile(settingsFile,'utf8'));appSettings={autoUpdates:saved.autoUpdates!==false,hardwareAcceleration:saved.hardwareAcceleration!==false}}catch{/* Defaults are used on first launch. */}
+  try{const saved=JSON.parse(await fs.readFile(settingsFile,'utf8'));appSettings={autoUpdates:saved.autoUpdates!==false,hardwareAcceleration:saved.hardwareAcceleration!==false,photoEditor:typeof saved.photoEditor==='string'?saved.photoEditor:undefined}}catch{/* Defaults are used on first launch. */}
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(process.platform,action=>action==='check-updates'?void checkForUpdates(true):win?.webContents.send('menu:action',action))))
   catalog=new Catalog(path.join(app.getPath('userData'),'photo-library'),p=>win?.webContents.send('import:progress',p));await catalog.load()
   protocol.handle('photo',async req=>{try{let file=photoPath(req.url);const photos=catalog.library?.photos||[];const item=photos.find(p=>[p.previewUrl,p.fullPreviewUrl, p.jpegPath ? 'photo://local/'+encodeURIComponent(p.jpegPath) : '',p.sourceJpeg ? 'photo://local/'+encodeURIComponent(p.sourceJpeg) : ''].includes(req.url)||p.decodedPath===file||catalog.inspectionUrls.get(p.id)?.has(req.url))
@@ -52,6 +54,8 @@ ipcMain.handle('grid:save',async()=>{if(!catalog.library)return null;const p=awa
 ipcMain.handle('grid:new',async()=>{const p=await dialog.showSaveDialog(win!,{title:'Create blank catalog',defaultPath:'Untitled.LPV',filters:[{name:'Lucci Photo Select',extensions:['LPV']}]});if(p.canceled||!p.filePath)return null;const file=p.filePath.toLowerCase().endsWith('.lpv')?p.filePath:p.filePath+'.LPV';return catalog.newProject(file)})
 ipcMain.handle('updates:check',()=>checkForUpdates(true))
 ipcMain.handle('settings:load',()=>appSettings)
-ipcMain.handle('settings:save',async(_event,value:{autoUpdates?:unknown;hardwareAcceleration?:unknown})=>{appSettings={autoUpdates:value?.autoUpdates!==false,hardwareAcceleration:value?.hardwareAcceleration!==false};return saveAppSettings()})
+ipcMain.handle('settings:save',async(_event,value:{autoUpdates?:unknown;hardwareAcceleration?:unknown})=>{appSettings={autoUpdates:value?.autoUpdates!==false,hardwareAcceleration:value?.hardwareAcceleration!==false,photoEditor:appSettings.photoEditor};return saveAppSettings()})
+ipcMain.handle('settings:choose-editor',async()=>{const result=await dialog.showOpenDialog(win!,{title:'Choose photo editor',properties:['openFile'],filters:process.platform==='win32'?[{name:'Applications',extensions:['exe']}]:undefined});if(result.canceled)return appSettings;const editor=result.filePaths[0],extension=path.extname(editor).toLowerCase();if(process.platform==='win32'&&extension!=='.exe')throw new Error('Choose a Windows .exe application.');if(process.platform==='darwin'&&extension!=='.app')throw new Error('Choose a macOS .app application.');appSettings.photoEditor=editor;return saveAppSettings()})
+ipcMain.handle('photo:open-editor',async(_event,id:string,kind:'raw'|'jpeg')=>{if(!appSettings.photoEditor)throw new Error('Choose a photo editor in Edit → Settings first.');if(!['raw','jpeg'].includes(kind))throw new Error('Invalid photo format.');await fs.access(appSettings.photoEditor);const photo=catalog.library?.photos.find(item=>item.id===id);if(!photo)throw new Error('Photo not found.');const original=catalog.resolve(photo,kind);if(!original)throw new Error(`The original ${kind.toUpperCase()} is missing or unavailable.`);const child=process.platform==='darwin'?spawn('/usr/bin/open',['-a',appSettings.photoEditor,original],{detached:true,stdio:'ignore'}):spawn(appSettings.photoEditor,[original],{detached:true,stdio:'ignore'});child.unref()})
 ipcMain.handle('grid:open',async()=>{const p=await dialog.showOpenDialog(win!,{title:'Open project',properties:['openFile'],filters:[{name:'Lucci Photo Select',extensions:['LPV','lpv']}]});return p.canceled?null:catalog.openProject(p.filePaths[0])})
 ipcMain.handle('grid:relink',async()=>{const p=await dialog.showOpenDialog(win!,{title:'Locate missing files in folder',properties:['openDirectory']});return p.canceled?null:catalog.relink(p.filePaths[0])})
