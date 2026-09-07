@@ -3,7 +3,7 @@ export type Photo = {
   previewUrl:string; fullPreviewUrl?:string; decodedPath?:string; hash?:string;
   width:number; height:number; capturedAt?:string; camera?:string; lens?:string; iso?:number;
   shutter?:number; aperture?:number; whiteBalance?:string; colorLabel?:'none'|'red'|'yellow'|'green'|'blue'|'purple';
-  review?:boolean; missing?:boolean; ratingSource?:'manual'|'automatic'; viewingProfile?:string;
+  review?:boolean; missing?:boolean; missingRaw?:boolean; missingJpeg?:boolean; ratingSource?:'manual'|'automatic'; viewingProfile?:string;
   score:number; stars:number; sharpness:number; exposure:number; noise:number; framing:number;
   eyeSharpness?:number; faceCount?:number; ratingVersion?:number; ratingNotes?:string[];
   signature?:number[]; burstId?:string; bookmarked:boolean; flag?:'none'|'pick'|'reject'; note:string; importedAt:string;

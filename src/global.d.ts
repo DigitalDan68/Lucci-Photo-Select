@@ -5,7 +5,7 @@ declare global {interface Window {photoAPI:{
   platform:string;loadLibrary():Promise<Library|null>;importCard():Promise<{library:Library|null;report:Report}|null>;importFolder():Promise<{library:Library|null;report:Report}|null>;
   updatePhotos(ids:string[],patch:Patch):Promise<Library|null>;inspect(id:string,mode?:string):Promise<Inspection>;suggest(n:number,v:number):Promise<string[]>;undo(redo?:boolean):Promise<Library|null>;
   exportPhotos(ids:string[],mode:'rename'|'skip'):Promise<Report|null>;newGrid():Promise<Library|null>;saveGrid():Promise<Report|null>;openGrid():Promise<Library|null>;relink():Promise<{library:Library|null;report:Report}|null>;
-  settings():Promise<{autoUpdates:boolean;hardwareAcceleration:boolean}>;saveSettings(value:{autoUpdates:boolean;hardwareAcceleration:boolean}):Promise<{autoUpdates:boolean;hardwareAcceleration:boolean}>;checkUpdates():Promise<void>;
+  settings():Promise<{autoUpdates:boolean;hardwareAcceleration:boolean;photoEditor?:string}>;saveSettings(value:{autoUpdates:boolean;hardwareAcceleration:boolean}):Promise<{autoUpdates:boolean;hardwareAcceleration:boolean;photoEditor?:string}>;choosePhotoEditor():ReturnType<Window['photoAPI']['settings']>;openInPhotoEditor(id:string,kind:'raw'|'jpeg'):Promise<void>;checkUpdates():Promise<void>;
   rerank():Promise<{library:Library|null;report:Report}>;cancel():Promise<void>;clearLibrary():Promise<void>;onImportProgress(fn:(p:ImportProgress)=>void):()=>void;
 }}}
 export {}

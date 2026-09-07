@@ -1,5 +1,5 @@
-const {test}=require('node:test'),assert=require('node:assert/strict')
-const {dcpIdentity,cameraMatches,profileSettings}=require('../dist-electron/profiles')
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path')
+const {dcpIdentity,cameraMatches,profileSettings,ProfileStore}=require('../dist-electron/profiles')
 test('DCP identity reads camera-specific profile tags and rejects malformed input',()=>{
  const b=Buffer.alloc(160);b.write('II');b.writeUInt16LE(0x4352,2);b.writeUInt32LE(8,4);b.writeUInt16LE(3,8)
  const entry=(at,tag,type,count,offset)=>{b.writeUInt16LE(tag,at);b.writeUInt16LE(type,at+2);b.writeUInt32LE(count,at+4);b.writeUInt32LE(offset,at+8)}
@@ -8,3 +8,4 @@ test('DCP identity reads camera-specific profile tags and rejects malformed inpu
  assert(cameraMatches('Sony ILCE-7M5','ILCE-7M5'));assert(!cameraMatches('Sony ILCE-7M4','ILCE-7M5'))
 })
 test('DCP processing enables matrix correction, look table, tone curve, and exposure offset',()=>{const settings=profileSettings('C:\\Camera profiles\\Camera PT.dcp');assert(settings.includes('InputProfile=file:C:/Camera profiles/Camera PT.dcp'));for(const name of ['ToneCurve','ApplyHueSatMap','ApplyLookTable','ApplyBaselineExposureOffset'])assert(settings.includes(name+'=true'));assert(settings.includes('[Crop]\nEnabled=false'))})
+test('profile store migrates camera profiles from the branded app-data folder',async t=>{const roaming=await fs.mkdtemp(path.join(os.tmpdir(),'lpv-profiles-'));t.after(()=>fs.rm(roaming,{recursive:true,force:true}));const current=path.join(roaming,'photoapp','photo-library'),legacy=path.join(roaming,"Lucci's Photo Select",'photo-library'),profile=path.join(legacy,'Camera PT.dcp');await fs.mkdir(current,{recursive:true});await fs.mkdir(legacy,{recursive:true});await fs.writeFile(profile,'fixture');await fs.writeFile(path.join(current,'camera-profiles.json'),JSON.stringify({engine:'rawtherapee-cli.exe',profiles:[]}));await fs.writeFile(path.join(legacy,'camera-profiles.json'),JSON.stringify({profiles:[{id:'dcp:test',name:'Camera PT',camera:'Sony ILCE-7M5',file:profile}]}));const state=await new ProfileStore(current).list();assert.equal(state.profiles[0].name,'Camera PT');assert.equal(JSON.parse(await fs.readFile(path.join(current,'camera-profiles.json'),'utf8')).profiles.length,1)})
